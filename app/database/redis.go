@@ -16,6 +16,8 @@ var (
 	Key         = 0
 )
 
+// verificar o utra alterntiva ao redis
+
 func InitializeRedis() *redis.Client {
 	RedisClient = redis.NewClient(&redis.Options{
 		Addr:     "redis_cache:6379",

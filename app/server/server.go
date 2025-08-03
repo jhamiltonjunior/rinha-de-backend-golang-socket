@@ -2,6 +2,9 @@ package server
 
 import (
 	"fmt"
+	"log"
+	"net"
+	"os"
 
 	"github.com/jhamiltonjunior/rinha-de-backend/app/handler"
 	"github.com/valyala/fasthttp"
@@ -30,9 +33,23 @@ func ListenAndServe(appPort string) {
 		ctx.Error("Not Found", fasthttp.StatusNotFound)
 	}
 
-	fmt.Println("Servidor rodando em http://localhost:" + appPort)
+	fmt.Println("UNIX SOCKET:" + os.Getenv("UNIX_SOCKET"))
 
-	if err := fasthttp.ListenAndServe(":"+appPort, requestHandler); err != nil {
+	UNIX_SOCKET := os.Getenv("UNIX_SOCKET")
+
+	err := os.Remove(UNIX_SOCKET)
+	if err != nil && !os.IsNotExist(err) {
+		log.Fatalf("Error removing UNIX socket: %v", err)
+	}
+
+	listener, err := net.Listen("unix", UNIX_SOCKET)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer listener.Close()
+	os.Chmod(UNIX_SOCKET, 0666)
+
+	if err := fasthttp.Serve(listener, requestHandler); err != nil {
 		fmt.Printf("Error in ListenAndServe: %s\n", err)
 	}
 }
