@@ -27,7 +27,7 @@ var (
 func InitializeWorker(client *redis.Client) {
 	defaultURL := os.Getenv("PAYMENT_PROCESSOR_URL_DEFAULT")
 	fallbackURL := os.Getenv("PAYMENT_PROCESSOR_URL_FALLBACK")
-	const numWorkers = 5
+	const numWorkers = 10
 
 	for i := 1; i <= numWorkers; i++ {
 		go workerLoop(client, defaultURL, fallbackURL)

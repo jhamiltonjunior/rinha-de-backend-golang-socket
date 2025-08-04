@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/jhamiltonjunior/rinha-de-backend/app/database"
@@ -22,26 +23,35 @@ type TypeDetails struct {
 	Fallback Details `json:"fallback"`
 }
 
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		b := make([]byte, 1024)
+		return &b
+	},
+}
+
 func Payments(ctx *fasthttp.RequestCtx) {
-	bodyCopy := make([]byte, len(ctx.PostBody()))
-	copy(bodyCopy, ctx.PostBody())
-	sendJSONResponse(ctx, fasthttp.StatusAccepted)
+	// bodyCopy := make([]byte, len(ctx.PostBody()))
+	// copy(bodyCopy, ctx.PostBody())
+	
+	bufPtr := bufferPool.Get().(*[]byte)
+    
+    body := ctx.PostBody()
+    *bufPtr = append((*bufPtr)[:0], body...)
+	ctx.SetStatusCode(202)
 
-	go func() {
-		cxt, cancel := context.WithTimeout(ctx, 105*time.Second)
-		defer cancel()
+	cxt := context.TODO()
 
-		now := time.Now().UTC()
+	now := time.Now().UTC()
 
-		paymentWorker := worker.PaymentWorker{
-			Body:              bodyCopy,
-			VouTeDarOContexto: cxt,
-			RequestedAt:       now.Format(utils.LayoutDate),
-			RetryCount:        0,
-		}
+	paymentWorker := worker.PaymentWorker{
+		Body:              *bufPtr,
+		VouTeDarOContexto: cxt,
+		RequestedAt:       now.Format(utils.LayoutDate),
+		RetryCount:        0,
+	}
 
-		worker.SegureOChann <- paymentWorker
-	}()
+	worker.SegureOChann <- paymentWorker
 }
 
 func PaymentsSummary(ctx *fasthttp.RequestCtx) {

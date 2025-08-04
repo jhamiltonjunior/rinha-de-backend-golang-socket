@@ -10,11 +10,11 @@ x-rinha-api-base: &rinha-api-base
   networks:
     - app-network
     - payment-processor
-  deploy:
-    resources:
-      limits:
-        cpus: "0.25"
-        memory: "40MB"
+  # deploy:
+  #   resources:
+  #     limits:
+  #       cpus: "0.375"
+  #       memory: "60MB"
   environment: &common-environment
     APP_PORT: 3000
     REDIS_ADDR: redis:6379
@@ -44,6 +44,20 @@ services:
     #       cpus: "0.4"
     #       memory: "20MB"
 
+  # nginx:
+  #   image: haproxy:3.2
+  #   container_name: haproxy_lb
+  #   volumes:
+  #     - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+  #   ports:
+  #     - "9999:80"
+  #   depends_on:
+  #     - rinha-api-1
+  #     - rinha-api-2
+  #     - rinha-api-3
+  #   networks:
+  #     - app-network
+
   rinha-api-1:
     <<: *rinha-api-base
     container_name: rinha-api-1
@@ -58,7 +72,6 @@ services:
     container_name: rinha-api-2
     environment:
       <<: *common-environment
-      RUN_VERIFY_PAYMENT_SERVICE: "true"
       UNIX_SOCKET: /var/run/api_2.sock
     command: ./main -socket /var/run/api_2.sock
 
@@ -67,7 +80,6 @@ services:
     container_name: rinha-api-3
     environment:
       <<: *common-environment
-      RUN_VERIFY_PAYMENT_SERVICE: "true"
       UNIX_SOCKET: /var/run/api_3.sock
     command: ./main -socket /var/run/api_3.sock
 
@@ -76,8 +88,8 @@ services:
   #   container_name: rinha-api-4
 
   redis:
-    image: docker.dragonflydb.io/dragonflydb/dragonfly 
-    # image: redis:7.2.4-alpine
+    # image: docker.dragonflydb.io/dragonflydb/dragonfly 
+    image: redis:7.2.4-alpine
     container_name: redis_cache
     networks:
       - app-network
@@ -106,8 +118,20 @@ services:
     networks:
       - app-network
 
+  # wrk:
+  #   image: williamyeh/wrk
+  #   container_name: wrk_benchmark
+  #   volumes:
+  #     - ./scripts:/scripts:ro
+  #     - api-sockets:/var/run
+  #   entrypoint: ["sleep", "1000000000"]
+  #   networks:
+  #     - app-network
+
+
 networks:
   app-network:
+    name: app-network
     driver: bridge
   payment-processor:
     external: true

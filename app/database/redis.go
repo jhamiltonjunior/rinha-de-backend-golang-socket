@@ -35,7 +35,7 @@ func CreatePaymentHistoryInMemory(client *redis.Client, paymentData map[string]a
 	keys := []string{"payment_history_1", "payment_history_2", "payment_history_3", "payment_history_4"}
 
 	newEntry := map[string]any{
-		"correlationId": paymentData["correlationId"],
+		// "correlationId": paymentData["correlationId"],
 		"amount":        paymentData["amount"],
 		"requestedAt":   paymentData["requestedAt"],
 		"type":          typeService,
@@ -46,6 +46,12 @@ func CreatePaymentHistoryInMemory(client *redis.Client, paymentData map[string]a
 		log.Printf("Erro ao serializar entrada: %v", err)
 		return
 	}
+
+	// if typeService == "default" {
+	// 	paymentData = append(paymentData, []byte(fmt.Sprintf(`,"type":"%"}`, 0))...)
+	// } else {
+	// 	paymentData = append(paymentData, []byte(fmt.Sprintf(`,"type":"%s"}`, 1))...)
+	// }
 
 	err = client.LPush(ctx, keys[Key], entryBytes).Err()
 	if err != nil {
@@ -104,7 +110,7 @@ func GetPaymentHistoryInMemory(client *redis.Client, from, to string) ([]Payment
 
 		if entryNum > fromNum && entryNum < toNum {
 			payment := PaymentHistory{
-				CorrelationId: entry["correlationId"].(string),
+				// CorrelationId: entry["correlationId"].(string),
 				Amount:        entry["amount"].(float64),
 				RequestedAt:   requestedAtStr,
 				Type:          entry["type"].(string),

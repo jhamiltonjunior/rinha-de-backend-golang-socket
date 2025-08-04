@@ -16,7 +16,7 @@ type PaymentHistory struct {
 	CorrelationId string  `bson:"correlationId"`
 	Amount        float64 `bson:"amount"`
 	RequestedAt   string  `bson:"requestedAt"`
-	Type          string  `bson:"type"`
+	Type          string     `bson:"type"`
 }
 
 func InitializeMongoDB() *mongo.Client {
