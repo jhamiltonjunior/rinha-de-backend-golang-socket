@@ -36,9 +36,9 @@ func CreatePaymentHistoryInMemory(client *redis.Client, paymentData map[string]a
 
 	newEntry := map[string]any{
 		// "correlationId": paymentData["correlationId"],
-		"amount":        paymentData["amount"],
-		"requestedAt":   paymentData["requestedAt"],
-		"type":          typeService,
+		"amount":      paymentData["amount"],
+		"requestedAt": paymentData["requestedAt"],
+		"type":        typeService,
 	}
 
 	entryBytes, err := json.Marshal(newEntry)
@@ -111,9 +111,9 @@ func GetPaymentHistoryInMemory(client *redis.Client, from, to string) ([]Payment
 		if entryNum > fromNum && entryNum < toNum {
 			payment := PaymentHistory{
 				// CorrelationId: entry["correlationId"].(string),
-				Amount:        entry["amount"].(float64),
-				RequestedAt:   requestedAtStr,
-				Type:          entry["type"].(string),
+				Amount:      entry["amount"].(float64),
+				RequestedAt: requestedAtStr,
+				Type:        entry["type"].(string),
 			}
 			filteredHistory = append(filteredHistory, payment)
 		}

@@ -16,7 +16,7 @@ type PaymentWorker struct {
 	Body              []byte
 	VouTeDarOContexto context.Context
 	RetryCount        int
-	RequestedAt      string
+	RequestedAt       string
 }
 
 var (
@@ -39,20 +39,20 @@ func InitializeWorker(client *redis.Client) {
 }
 
 func workerFunc(client *redis.Client, defaultURL, fallbackURL string, payment PaymentWorker) bool {
-	body, ok := ProcessPayment(payment.Body, payment.VouTeDarOContexto, defaultURL, payment.RequestedAt)
+	p, ok := ProcessPayment(payment.Body, payment.VouTeDarOContexto, defaultURL, payment.RequestedAt)
 	if ok {
-		database.CreatePaymentHistoryInMemory(client, body, "default")
+		database.CreatePaymentHistoryInMemorySlice(p, "default")
 		return true
 	}
-	
+
 	if payment.RetryCount <= 15 {
 		// fmt.Println(payment.RetryCount)
 		return false
 	}
 
-	body, ok = ProcessPayment(payment.Body, payment.VouTeDarOContexto, fallbackURL, payment.RequestedAt)
+	p, ok = ProcessPayment(payment.Body, payment.VouTeDarOContexto, fallbackURL, payment.RequestedAt)
 	if ok {
-		database.CreatePaymentHistoryInMemory(client, body, "fallback")
+		database.CreatePaymentHistoryInMemorySlice(p, "fallback")
 		return true
 	}
 
@@ -87,13 +87,14 @@ func retryworkLoop(client *redis.Client, defaultURL, fallbackURL string) {
 	}
 }
 
-func ProcessPayment(paymentBytes []byte, ctx context.Context, theBestURLEver string, requestedAt string) (map[string]any, bool) {
+func ProcessPayment(paymentBytes []byte, ctx context.Context, theBestURLEver string, requestedAt string) ([]byte, bool) {
 	var payment map[string]any
 	if err := json.Unmarshal(paymentBytes, &payment); err != nil {
 		return nil, false
 	}
 
 	payment["requestedAt"] = requestedAt
+	delete(payment, "correlationId")
 
 	paymentBytes, err := json.Marshal(payment)
 	if err != nil {
@@ -101,7 +102,7 @@ func ProcessPayment(paymentBytes []byte, ctx context.Context, theBestURLEver str
 		return nil, false
 	}
 
-	return payment, sendToPaymentService(paymentBytes, theBestURLEver, ctx)
+	return paymentBytes, sendToPaymentService(paymentBytes, theBestURLEver, ctx)
 }
 
 func sendToPaymentService(paymentBytes []byte, reqURL string, ctx context.Context) bool {

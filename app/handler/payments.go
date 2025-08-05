@@ -63,10 +63,10 @@ func PaymentsSummary(ctx *fasthttp.RequestCtx) {
 	}
 
 	if len(to) == 0 {
-		to = []byte("9999-12-31T23:59:00.000Z")
+		to = []byte("2027-12-31T23:59:00.000Z")
 	}
 
-	payments, err := database.GetPaymentHistoryInMemory(database.RedisClient, string(from), string(to))
+	payments, err := database.GetPaymentHistoryInMemorySlice(string(from), string(to))
 	if err != nil {
 		fmt.Println("Erro ao buscar histórico de pagamentos:", err)
 		sendJSONResponse(ctx, fasthttp.StatusInternalServerError)
@@ -85,8 +85,6 @@ func PaymentsSummary(ctx *fasthttp.RequestCtx) {
 		}
 	}
 
-	// ?from=2025-07-13T00:00:00&to=2025-07-13T14:33:48
-
 	paymentsSummary, err := json.Marshal(typeDetails)
 	if err != nil {
 		fmt.Println("Erro ao serializar resumo de pagamentos:", err)
@@ -94,14 +92,11 @@ func PaymentsSummary(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	// fmt.Printf("?from=%s&to=%s\n", string(from), string(to))
-	// fmt.Println("Payments Summary:", string(paymentsSummary))
-
 	fmt.Fprintf(ctx, "%s", string(paymentsSummary))
 	sendJSONResponse(ctx, fasthttp.StatusOK)
 }
 
 func PaymentsPurge(ctx *fasthttp.RequestCtx) {
-	database.PurgePaymentHistoryInMemory(database.RedisClient)
+	database.PurgePaymentHistoryInMemorySlice()
 	sendJSONResponse(ctx, fasthttp.StatusAccepted)
 }
