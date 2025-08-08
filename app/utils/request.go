@@ -10,13 +10,15 @@ import (
 )
 
 var httpClient = &fasthttp.Client{
-    Name: "my-payment-client",
-    ReadTimeout:  15 * time.Second,
-    WriteTimeout: 15 * time.Second,
-    MaxConnsPerHost: 1000,
+	Name:            "my-payment-client",
+	ReadTimeout:     105 * time.Second,
+	WriteTimeout:    105 * time.Second,
+	MaxConnsPerHost: 10000,
 }
 
-func Request(method string, json []byte, reqURL string, ctx context.Context) ([]byte, int) {
+func Request(method string, json []byte, reqURL string, _ context.Context) ([]byte, int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 205*time.Second)
+	defer cancel()
 	req := fasthttp.AcquireRequest()
 	defer fasthttp.ReleaseRequest(req)
 

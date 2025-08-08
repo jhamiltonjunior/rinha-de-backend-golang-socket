@@ -33,11 +33,12 @@ var bufferPool = sync.Pool{
 func Payments(ctx *fasthttp.RequestCtx) {
 	// bodyCopy := make([]byte, len(ctx.PostBody()))
 	// copy(bodyCopy, ctx.PostBody())
-	
+
+	fmt.Println("Received payment request")
 	bufPtr := bufferPool.Get().(*[]byte)
-    
-    body := ctx.PostBody()
-    *bufPtr = append((*bufPtr)[:0], body...)
+
+	body := ctx.PostBody()
+	*bufPtr = append((*bufPtr)[:0], body...)
 	ctx.SetStatusCode(202)
 
 	cxt := context.TODO()
@@ -94,11 +95,10 @@ func PaymentsSummary(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	// fmt.Printf("?from=%s&to=%s\n", string(from), string(to))
-	// fmt.Println("Payments Summary:", string(paymentsSummary))
+    ctx.SetContentType("application/json")
+    ctx.SetStatusCode(fasthttp.StatusOK)
 
-	fmt.Fprintf(ctx, "%s", string(paymentsSummary))
-	sendJSONResponse(ctx, fasthttp.StatusOK)
+    ctx.SetBody(paymentsSummary)
 }
 
 func PaymentsPurge(ctx *fasthttp.RequestCtx) {

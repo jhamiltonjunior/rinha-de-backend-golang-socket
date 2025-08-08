@@ -16,7 +16,7 @@ type PaymentWorker struct {
 	Body              []byte
 	VouTeDarOContexto context.Context
 	RetryCount        int
-	RequestedAt      string
+	RequestedAt       string
 }
 
 var (
@@ -39,17 +39,19 @@ func InitializeWorker(client *redis.Client) {
 }
 
 func workerFunc(client *redis.Client, defaultURL, fallbackURL string, payment PaymentWorker) bool {
+	// payment.RequestedAt = time.Now().UTC().Format(utils.LayoutDate)
 	body, ok := ProcessPayment(payment.Body, payment.VouTeDarOContexto, defaultURL, payment.RequestedAt)
 	if ok {
 		database.CreatePaymentHistoryInMemory(client, body, "default")
 		return true
 	}
-	
+
 	if payment.RetryCount <= 15 {
 		// fmt.Println(payment.RetryCount)
 		return false
 	}
 
+	// payment.RequestedAt = time.Now().UTC().Format(utils.LayoutDate)
 	body, ok = ProcessPayment(payment.Body, payment.VouTeDarOContexto, fallbackURL, payment.RequestedAt)
 	if ok {
 		database.CreatePaymentHistoryInMemory(client, body, "fallback")
@@ -93,7 +95,7 @@ func ProcessPayment(paymentBytes []byte, ctx context.Context, theBestURLEver str
 		return nil, false
 	}
 
-	payment["requestedAt"] = requestedAt
+	payment["requestedAt"] = time.Now().UTC().Format(utils.LayoutDate)
 
 	paymentBytes, err := json.Marshal(payment)
 	if err != nil {
