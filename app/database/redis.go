@@ -93,6 +93,7 @@ func GetPaymentHistoryInMemory(client *redis.Client, from, to string) ([]Payment
 	for _, item := range dataList {
 		var entry map[string]any
 		if err := json.Unmarshal([]byte(item), &entry); err != nil {
+			fmt.Println("Erro ao deserializar entrada:", err)
 			continue
 		}
 
@@ -103,6 +104,7 @@ func GetPaymentHistoryInMemory(client *redis.Client, from, to string) ([]Payment
 
 		entryTime, err := time.Parse(utils.LayoutDate, requestedAtStr)
 		if err != nil {
+			fmt.Println("Erro ao analisar data de entrada:", err)
 			continue
 		}
 

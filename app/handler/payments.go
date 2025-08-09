@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/jhamiltonjunior/rinha-de-backend/app/database"
 	"github.com/jhamiltonjunior/rinha-de-backend/app/utils"
 	"github.com/jhamiltonjunior/rinha-de-backend/app/worker"
-	"github.com/valyala/fasthttp"
 )
+
+// --- Struct definitions remain the same ---
 
 type Details struct {
 	TotalRequests int     `json:"totalRequests"`
@@ -23,26 +27,60 @@ type TypeDetails struct {
 	Fallback Details `json:"fallback"`
 }
 
+// --- Buffer pool remains the same ---
+
 var bufferPool = sync.Pool{
 	New: func() interface{} {
-		b := make([]byte, 1024)
+		b := make([]byte, 0, 1024) // Start with 0 length, 1024 capacity
 		return &b
 	},
 }
 
-func Payments(ctx *fasthttp.RequestCtx) {
-	// bodyCopy := make([]byte, len(ctx.PostBody()))
-	// copy(bodyCopy, ctx.PostBody())
+// --- HTTP Response Helpers ---
 
-	fmt.Println("Received payment request")
+// response generates a full HTTP response with a body.
+func response(statusCode, statusText, contentType string, body []byte) []byte {
+	contentLength := strconv.Itoa(len(body))
+	// Using a strings.Builder is efficient for concatenating strings.
+	var b strings.Builder
+	b.WriteString("HTTP/1.1 ")
+	b.WriteString(statusCode)
+	b.WriteString(" ")
+	b.WriteString(statusText)
+	b.WriteString("\r\nContent-Type: ")
+	b.WriteString(contentType)
+	b.WriteString("\r\nContent-Length: ")
+	b.WriteString(contentLength)
+	b.WriteString("\r\n\r\n")
+
+	// Combine headers and body
+	responseBytes := make([]byte, 0, b.Len()+len(body))
+	responseBytes = append(responseBytes, []byte(b.String())...)
+	responseBytes = append(responseBytes, body...)
+	return responseBytes
+}
+
+// emptyResponse generates an HTTP response without a body.
+func emptyResponse(statusCode, statusText string) []byte {
+	return []byte("HTTP/1.1 " + statusCode + " " + statusText + "\r\nContent-Length: 0\r\n\r\n")
+}
+
+// Helper functions for common responses.
+func Accepted() []byte            { return emptyResponse("202", "Accepted") }
+func NotFound() []byte            { return emptyResponse("404", "Not Found") }
+func InternalServerError() []byte { return emptyResponse("500", "Internal Server Error") }
+func BadRequest(body string) []byte {
+	return response("400", "Bad Request", "text/plain", []byte(body))
+}
+func OK(body []byte) []byte { return response("200", "OK", "application/json", body) }
+
+func Payments(body []byte) {
+	fmt.Println("Received payment request via gnet")
+
 	bufPtr := bufferPool.Get().(*[]byte)
-
-	body := ctx.PostBody()
 	*bufPtr = append((*bufPtr)[:0], body...)
-	ctx.SetStatusCode(202)
 
 	cxt := context.TODO()
-
 	now := time.Now().UTC()
 
 	paymentWorker := worker.PaymentWorker{
@@ -55,23 +93,30 @@ func Payments(ctx *fasthttp.RequestCtx) {
 	worker.SegureOChann <- paymentWorker
 }
 
-func PaymentsSummary(ctx *fasthttp.RequestCtx) {
-	from := ctx.QueryArgs().Peek("from")
-	to := ctx.QueryArgs().Peek("to")
+func PaymentsSummary(path string) []byte {
+	time.Sleep(900 * time.Millisecond)
 
-	if len(from) == 0 {
-		from = []byte("1970-01-01T00:00:00.000Z")
+	from := "1970-01-01T00:00:00.000Z"
+	to := "9999-12-31T23:59:00.000Z"
+
+	if path != "" {
+		queryParams, err := url.ParseQuery(path)
+		if err == nil {
+			if f := queryParams.Get("from"); f != "" {
+				from = f
+			}
+			if t := queryParams.Get("to"); t != "" {
+				to = t
+			}
+		}
+
+		fmt.Println(queryParams)
 	}
 
-	if len(to) == 0 {
-		to = []byte("9999-12-31T23:59:00.000Z")
-	}
-
-	payments, err := database.GetPaymentHistoryInMemory(database.RedisClient, string(from), string(to))
+	payments, err := database.GetPaymentHistoryInMemory(database.RedisClient, from, to)
 	if err != nil {
-		fmt.Println("Erro ao buscar histórico de pagamentos:", err)
-		sendJSONResponse(ctx, fasthttp.StatusInternalServerError)
-		return
+		fmt.Println("Error fetching payment history:", err)
+		return InternalServerError()
 	}
 
 	var typeDetails TypeDetails
@@ -86,22 +131,16 @@ func PaymentsSummary(ctx *fasthttp.RequestCtx) {
 		}
 	}
 
-	// ?from=2025-07-13T00:00:00&to=2025-07-13T14:33:48
-
 	paymentsSummary, err := json.Marshal(typeDetails)
 	if err != nil {
-		fmt.Println("Erro ao serializar resumo de pagamentos:", err)
-		sendJSONResponse(ctx, fasthttp.StatusInternalServerError)
-		return
+		fmt.Println("Error serializing payment summary:", err)
+		return InternalServerError()
 	}
 
-    ctx.SetContentType("application/json")
-    ctx.SetStatusCode(fasthttp.StatusOK)
-
-    ctx.SetBody(paymentsSummary)
+	return OK(paymentsSummary)
 }
 
-func PaymentsPurge(ctx *fasthttp.RequestCtx) {
+func PaymentsPurge() []byte {
 	database.PurgePaymentHistoryInMemory(database.RedisClient)
-	sendJSONResponse(ctx, fasthttp.StatusAccepted)
+	return Accepted()
 }

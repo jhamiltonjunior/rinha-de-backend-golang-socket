@@ -39,7 +39,6 @@ func InitializeWorker(client *redis.Client) {
 }
 
 func workerFunc(client *redis.Client, defaultURL, fallbackURL string, payment PaymentWorker) bool {
-	// payment.RequestedAt = time.Now().UTC().Format(utils.LayoutDate)
 	body, ok := ProcessPayment(payment.Body, payment.VouTeDarOContexto, defaultURL, payment.RequestedAt)
 	if ok {
 		database.CreatePaymentHistoryInMemory(client, body, "default")
@@ -51,7 +50,6 @@ func workerFunc(client *redis.Client, defaultURL, fallbackURL string, payment Pa
 		return false
 	}
 
-	// payment.RequestedAt = time.Now().UTC().Format(utils.LayoutDate)
 	body, ok = ProcessPayment(payment.Body, payment.VouTeDarOContexto, fallbackURL, payment.RequestedAt)
 	if ok {
 		database.CreatePaymentHistoryInMemory(client, body, "fallback")
@@ -92,6 +90,7 @@ func retryworkLoop(client *redis.Client, defaultURL, fallbackURL string) {
 func ProcessPayment(paymentBytes []byte, ctx context.Context, theBestURLEver string, requestedAt string) (map[string]any, bool) {
 	var payment map[string]any
 	if err := json.Unmarshal(paymentBytes, &payment); err != nil {
+		fmt.Println("Erro ao deserializar o pagamento:", err)
 		return nil, false
 	}
 
@@ -102,6 +101,8 @@ func ProcessPayment(paymentBytes []byte, ctx context.Context, theBestURLEver str
 		fmt.Println("Erro ao serializar o pagamento:", err)
 		return nil, false
 	}
+
+	fmt.Printf("Pagamento processado com sucesso: %v\n", payment)
 
 	return payment, sendToPaymentService(paymentBytes, theBestURLEver, ctx)
 }
