@@ -7,11 +7,9 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jhamiltonjunior/rinha-de-backend/app/database"
-	"github.com/jhamiltonjunior/rinha-de-backend/app/utils"
 	"github.com/jhamiltonjunior/rinha-de-backend/app/worker"
 )
 
@@ -28,13 +26,6 @@ type TypeDetails struct {
 }
 
 // --- Buffer pool remains the same ---
-
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		b := make([]byte, 0, 1024) // Start with 0 length, 1024 capacity
-		return &b
-	},
-}
 
 // --- HTTP Response Helpers ---
 
@@ -74,27 +65,29 @@ func BadRequest(body string) []byte {
 }
 func OK(body []byte) []byte { return response("200", "OK", "application/json", body) }
 
-func Payments(body []byte) {
-	fmt.Println("Received payment request via gnet")
+var cxt = context.Background()
 
-	bufPtr := bufferPool.Get().(*[]byte)
+func Payments(body []byte) {
+	bufPtr := worker.BufferPool.Get().(*[]byte)
 	*bufPtr = append((*bufPtr)[:0], body...)
 
-	cxt := context.TODO()
-	now := time.Now().UTC()
+	// now := time.Now().UTC()
 
 	paymentWorker := worker.PaymentWorker{
 		Body:              *bufPtr,
 		VouTeDarOContexto: cxt,
-		RequestedAt:       now.Format(utils.LayoutDate),
-		RetryCount:        0,
+		// RequestedAt:       now.Format(utils.LayoutDate),
+		RetryCount: 0,
 	}
 
 	worker.SegureOChann <- paymentWorker
 
+	// BufferPool.Put(bufPtr)
+
 }
 
 func PaymentsSummary(path string) []byte {
+	time.Sleep(900 * time.Millisecond)
 	from := "1970-01-01T00:00:00.000Z"
 	to := "9999-12-31T23:59:00.000Z"
 
@@ -108,8 +101,6 @@ func PaymentsSummary(path string) []byte {
 				to = t
 			}
 		}
-
-		fmt.Println(queryParams)
 	}
 
 	payments, err := database.GetPaymentHistoryInMemory(database.RedisClient, from, to)
@@ -136,10 +127,9 @@ func PaymentsSummary(path string) []byte {
 		return InternalServerError()
 	}
 
-	return OK(paymentsSummary)
+	return []byte(paymentsSummary)
 }
 
-func PaymentsPurge() []byte {
+func PaymentsPurge() {
 	database.PurgePaymentHistoryInMemory(database.RedisClient)
-	return Accepted()
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/jhamiltonjunior/rinha-de-backend/app/database"
@@ -22,6 +23,12 @@ type PaymentWorker struct {
 var (
 	SegureOChann  = make(chan PaymentWorker, 4000)
 	SegureOChann2 = make(chan PaymentWorker, 4000)
+	BufferPool    = sync.Pool{
+		New: func() interface{} {
+			b := make([]byte, 0, 1024)
+			return &b
+		},
+	}
 )
 
 func InitializeWorker(client *redis.Client) {
@@ -41,6 +48,7 @@ func InitializeWorker(client *redis.Client) {
 func workerFunc(client *redis.Client, defaultURL, fallbackURL string, payment PaymentWorker) bool {
 	body, ok := ProcessPayment(payment.Body, payment.VouTeDarOContexto, defaultURL, payment.RequestedAt)
 	if ok {
+		BufferPool.Put(&payment.Body)
 		database.CreatePaymentHistoryInMemory(client, body, "default")
 		return true
 	}
@@ -52,6 +60,7 @@ func workerFunc(client *redis.Client, defaultURL, fallbackURL string, payment Pa
 
 	body, ok = ProcessPayment(payment.Body, payment.VouTeDarOContexto, fallbackURL, payment.RequestedAt)
 	if ok {
+		BufferPool.Put(&payment.Body)
 		database.CreatePaymentHistoryInMemory(client, body, "fallback")
 		return true
 	}
@@ -101,8 +110,6 @@ func ProcessPayment(paymentBytes []byte, ctx context.Context, theBestURLEver str
 		fmt.Println("Erro ao serializar o pagamento:", err)
 		return nil, false
 	}
-
-	fmt.Printf("Pagamento processado com sucesso: %v\n", payment)
 
 	return payment, sendToPaymentService(paymentBytes, theBestURLEver, ctx)
 }
