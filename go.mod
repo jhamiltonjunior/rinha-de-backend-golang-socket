@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/cloudwego/hertz v0.10.1
+	github.com/nats-io/nats.go v1.44.0
 	github.com/redis/go-redis/v9 v9.11.0
 	github.com/tidwall/evio v1.0.8
 	github.com/valyala/fasthttp v1.64.0
@@ -27,6 +28,8 @@ require (
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
+	github.com/nats-io/nkeys v0.4.11 // indirect
+	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nyaruka/phonenumbers v1.0.55 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

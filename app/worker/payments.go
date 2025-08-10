@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/jhamiltonjunior/rinha-de-backend/app/database"
+	"github.com/jhamiltonjunior/rinha-de-backend/app/services"
 	"github.com/jhamiltonjunior/rinha-de-backend/app/utils"
+	"github.com/nats-io/nats.go"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -34,10 +37,32 @@ var (
 func InitializeWorker(client *redis.Client) {
 	defaultURL := os.Getenv("PAYMENT_PROCESSOR_URL_DEFAULT")
 	fallbackURL := os.Getenv("PAYMENT_PROCESSOR_URL_FALLBACK")
-	const numWorkers = 10
+	const numWorkers = 20
+	queueGroup := "worker-group-1"
+
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	workerLogic := func(_ int) nats.MsgHandler {
+		return func(msg *nats.Msg) {
+			paymentWorker := PaymentWorker{
+				Body:              msg.Data,
+				VouTeDarOContexto: context.TODO(),
+				RetryCount:        0,
+			}
+			if !workerFunc(client, defaultURL, fallbackURL, paymentWorker) {
+				paymentWorker.RetryCount++
+				SegureOChann2 <- paymentWorker
+			}
+		}
+	}
 
 	for i := 1; i <= numWorkers; i++ {
-		go workerLoop(client, defaultURL, fallbackURL)
+		workerID := i
+		_, err := services.NC.QueueSubscribe(services.PaymentSubject, queueGroup, workerLogic(workerID))
+		if err != nil {
+			log.Fatalf("Worker %d failed to subscribe: %v", workerID, err)
+		}
 	}
 
 	for i := 1; i <= numWorkers; i++ {
@@ -66,19 +91,6 @@ func workerFunc(client *redis.Client, defaultURL, fallbackURL string, payment Pa
 	}
 
 	return false
-}
-
-func workerLoop(client *redis.Client, defaultURL, fallbackURL string) {
-	for payment := range SegureOChann {
-		if !workerFunc(client, defaultURL, fallbackURL, payment) {
-			SegureOChann2 <- PaymentWorker{
-				Body:              payment.Body,
-				VouTeDarOContexto: context.TODO(),
-				RetryCount:        payment.RetryCount,
-				RequestedAt:       payment.RequestedAt,
-			}
-		}
-	}
 }
 
 func retryworkLoop(client *redis.Client, defaultURL, fallbackURL string) {

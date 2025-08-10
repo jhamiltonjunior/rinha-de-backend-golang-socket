@@ -5,8 +5,10 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 
 	"github.com/jhamiltonjunior/rinha-de-backend/app/handler"
+	"github.com/jhamiltonjunior/rinha-de-backend/app/services"
 	"github.com/valyala/fasthttp"
 )
 
@@ -18,13 +20,25 @@ var (
 
 // netpoll
 
+var (
+	BufferPool = sync.Pool{
+		New: func() interface{} {
+			b := make([]byte, 0, 1024)
+			return &b
+		},
+	}
+)
+
 func requestHandler(ctx *fasthttp.RequestCtx) {
 	path := ctx.Path()
 	method := ctx.Method()
 
 	switch {
 	case bytes.Equal(method, []byte(fasthttp.MethodPost)) && bytes.Equal(path, paymentsPath):
-		handler.Payments(ctx.PostBody())
+		bufPtr := BufferPool.Get().(*[]byte)
+		*bufPtr = append((*bufPtr)[:0], ctx.PostBody()...)
+		services.PublishMessage(services.PaymentSubject, *bufPtr)
+		BufferPool.Put(bufPtr)
 		ctx.SetStatusCode(fasthttp.StatusOK)
 
 	case bytes.Equal(method, []byte(fasthttp.MethodGet)) && bytes.Equal(path, paymentsSummaryPath):
@@ -46,7 +60,6 @@ func ListenAndServeFastHTTP(appPort string) {
 	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
 		log.Fatalf("failed to remove existing socket: %v", err)
 	}
-	
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {

@@ -25,11 +25,6 @@ type TypeDetails struct {
 	Fallback Details `json:"fallback"`
 }
 
-// --- Buffer pool remains the same ---
-
-// --- HTTP Response Helpers ---
-
-// response generates a full HTTP response with a body.
 func response(statusCode, statusText, contentType string, body []byte) []byte {
 	contentLength := strconv.Itoa(len(body))
 	// Using a strings.Builder is efficient for concatenating strings.
@@ -51,7 +46,6 @@ func response(statusCode, statusText, contentType string, body []byte) []byte {
 	return responseBytes
 }
 
-// emptyResponse generates an HTTP response without a body.
 func emptyResponse(statusCode, statusText string) []byte {
 	return []byte("HTTP/1.1 " + statusCode + " " + statusText + "\r\nContent-Length: 0\r\n\r\n")
 }
@@ -71,23 +65,17 @@ func Payments(body []byte) {
 	bufPtr := worker.BufferPool.Get().(*[]byte)
 	*bufPtr = append((*bufPtr)[:0], body...)
 
-	// now := time.Now().UTC()
-
 	paymentWorker := worker.PaymentWorker{
 		Body:              *bufPtr,
 		VouTeDarOContexto: cxt,
-		// RequestedAt:       now.Format(utils.LayoutDate),
-		RetryCount: 0,
+		RetryCount:        0,
 	}
 
 	worker.SegureOChann <- paymentWorker
 
-	// BufferPool.Put(bufPtr)
-
 }
 
 func PaymentsSummary(path string) []byte {
-	time.Sleep(900 * time.Millisecond)
 	from := "1970-01-01T00:00:00.000Z"
 	to := "9999-12-31T23:59:00.000Z"
 

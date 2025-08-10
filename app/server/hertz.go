@@ -2,35 +2,40 @@ package server
 
 import (
 	"bytes"
-
 	"context"
 	"log"
+	"os" // Import the 'os' package for file operations
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
-	"github.com/jhamiltonjunior/rinha-de-backend/app/handler"
-
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/jhamiltonjunior/rinha-de-backend/app/handler"
+	"github.com/jhamiltonjunior/rinha-de-backend/app/services"
 )
 
 var (
-	// paymentsPath        = []byte("/payments")
-	// paymentsSummaryPath = []byte("/payments-summary")
-	// purgePaymentsPath   = []byte("/purge-payments")
-
-	methodPost = []byte([]byte("POST"))
-	methodGet  = []byte([]byte("GET"))
+	// Path definitions remain the same.
+	methodPost = []byte("POST")
+	methodGet  = []byte("GET")
 )
 
+// The request handler logic does not need to change, as it operates
+// at the application layer, independent of the network transport.
 func requestHandlerHertz(c context.Context, ctx *app.RequestContext) {
 	path := ctx.Path()
 	method := ctx.Method()
 
 	switch {
 	case bytes.Equal(method, methodPost) && bytes.Equal(path, paymentsPath):
-		// Se quiser rodar async como no seu fasthttp, use goroutine
-		handler.Payments(ctx.Request.Body())
-		ctx.Status(200)
+		timestart := time.Now()
+		bufPtr := BufferPool.Get().(*[]byte)
+		*bufPtr = append((*bufPtr)[:0], ctx.Request.Body()...)
+		services.PublishMessage(services.PaymentSubject, *bufPtr)
+		BufferPool.Put(bufPtr)
+		timeend := time.Since(timestart)
+		log.Printf("Tempo gasto para copiar o body: %s", timeend)
+		ctx.Status(consts.StatusOK)
 
 	case bytes.Equal(method, methodGet) && bytes.Equal(path, paymentsSummaryPath):
 		query := string(ctx.QueryArgs().QueryString())
@@ -39,32 +44,54 @@ func requestHandlerHertz(c context.Context, ctx *app.RequestContext) {
 
 	case bytes.Equal(method, methodPost) && bytes.Equal(path, purgePaymentsPath):
 		handler.PaymentsPurge()
-		ctx.Status(200)
+		ctx.Status(consts.StatusOK)
 
 	default:
-		ctx.Status(404)
+		ctx.Status(consts.StatusNotFound)
 	}
 }
 
-func ListenAndServeHertz(appPort string) {
-	// It's more idiomatic in Hertz to configure the server with options,
-	// like setting the port, during initialization.
-	h := server.Default(server.WithHostPorts(":" + appPort))
+// ListenAndServeHertz is updated to listen on a Unix socket.
+// The function now accepts a socket file path instead of a port number.
+func ListenAndServeHertz(_ string) {
+	socketPath := os.Getenv("UNIX_SOCKET")
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+		log.Fatalf("failed to remove existing socket: %v", err)
+	}
+	// Here's the main change:
+	// We configure the Hertz server to listen on a Unix socket by providing
+	// the WithNetwork("unix") and WithHostPorts(socketPath) options.
+	h := server.Default(
+		server.WithNetwork("unix"),
+		server.WithHostPorts(socketPath),
+	)
 
-	// The handler functions must be explicitly cast to app.HandlerFunc.
+	// The route registration logic remains the same.
 	h.NoRoute(app.HandlerFunc(func(ctx context.Context, c *app.RequestContext) {
 		c.String(consts.StatusNotFound, "404 Not Found")
 	}))
 
-	// Registering routes.
-	// Note the casting to app.HandlerFunc.
+	err := os.Chmod(socketPath, 0666)
+	if err != nil {
+		log.Fatalf("failed to set permissions on socket: %v", err)
+	}
+
 	h.POST("/payments", app.HandlerFunc(requestHandlerHertz))
 	h.GET("/payments-summary", app.HandlerFunc(requestHandlerHertz))
 	h.POST("/purge-payments", app.HandlerFunc(requestHandlerHertz))
 
-	// h.Spin() is the primary method to start the server and block
-	// until it's stopped. It will handle errors internally and log them.
-	// Using h.Spin() avoids the need for a manual error check like the one you had.
-	log.Printf("Hertz server starting on port %s", appPort)
+	go func() {
+		// Aplica permissões após o socket ser criado
+		for {
+			if _, err := os.Stat(socketPath); err == nil {
+				_ = os.Chmod(socketPath, 0666)
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	// Update the log message to show it's listening on a socket.
+	log.Printf("Hertz server starting on unix socket: %s", socketPath)
 	h.Spin()
 }

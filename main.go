@@ -5,11 +5,16 @@ import (
 
 	"github.com/jhamiltonjunior/rinha-de-backend/app/database"
 	"github.com/jhamiltonjunior/rinha-de-backend/app/server"
+	"github.com/jhamiltonjunior/rinha-de-backend/app/services"
 	"github.com/jhamiltonjunior/rinha-de-backend/app/worker"
 )
 
 func main() {
 	clientRedis := database.InitializeRedis()
+
+	natsURL := os.Getenv("NATS_URL")
+
+	services.InitNATS(natsURL)
 
 	worker.InitializeWorker(clientRedis)
 
