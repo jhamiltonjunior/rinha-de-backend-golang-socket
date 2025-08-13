@@ -10,7 +10,7 @@ RUN go mod download
 COPY . .
 
 # RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux GODEBUG=madvdontneed=1,gctrace=0  go build -gcflags="all=-l -B" -ldflags="-s -w -buildid=" -trimpath -o main .
-RUN CGO_ENABLED=0 GOGC=off GOARCH=amd64 GOOS=linux GODEBUG=madvdontneed=1,gctrace=0  go build -gcflags="all=-l -B" -ldflags="-s -w -buildid=" -trimpath -o main .
+RUN go build -o main .
 
 FROM alpine:latest
 
@@ -21,5 +21,8 @@ WORKDIR /root/
 COPY --from=builder /app/main .
 
 EXPOSE 3000
+
+ENV GOGC 1000
+ENV GOMAXPROCS 3
 
 CMD ["./main"]

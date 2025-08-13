@@ -37,7 +37,9 @@ func requestHandler(ctx *fasthttp.RequestCtx) {
 	case bytes.Equal(method, []byte(fasthttp.MethodPost)) && bytes.Equal(path, paymentsPath):
 		bufPtr := BufferPool.Get().(*[]byte)
 		*bufPtr = append((*bufPtr)[:0], ctx.PostBody()...)
-		services.PublishMessage(services.PaymentSubject, *bufPtr)
+		go func(b []byte) {
+			services.PublishMessage(services.PaymentSubject, b)
+		}(*bufPtr)
 		BufferPool.Put(bufPtr)
 		ctx.SetStatusCode(fasthttp.StatusOK)
 

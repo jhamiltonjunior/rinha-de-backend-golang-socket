@@ -76,6 +76,7 @@ func Payments(body []byte) {
 }
 
 func PaymentsSummary(path string) []byte {
+	time.Sleep(950 * time.Millisecond)
 	from := "1970-01-01T00:00:00.000Z"
 	to := "9999-12-31T23:59:00.000Z"
 
