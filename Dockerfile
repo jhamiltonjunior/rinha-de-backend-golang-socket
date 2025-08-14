@@ -22,7 +22,7 @@ COPY --from=builder /app/main .
 
 EXPOSE 3000
 
-ENV GOGC 1000
-ENV GOMAXPROCS 3
+# ENV GOGC 1000
+# ENV GOMAXPROCS 3
 
 CMD ["./main"]

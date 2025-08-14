@@ -71,9 +71,13 @@ services:
       UNIX_SOCKET: /var/run/api_3.sock
     command: ./main -socket /var/run/api_3.sock
 
-  # rinha-api-4:
-  #   <<: *rinha-api-base
-  #   container_name: rinha-api-4
+  rinha-api-4:
+    <<: *rinha-api-base
+    container_name: rinha-api-4
+    environment:
+      <<: *common-environment
+      UNIX_SOCKET: /var/run/api_4.sock
+    command: ./main -socket /var/run/api_4.sock
 
   redis:
     # image: docker.dragonflydb.io/dragonflydb/dragonfly 
