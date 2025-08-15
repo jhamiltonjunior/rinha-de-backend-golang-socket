@@ -77,6 +77,7 @@ func Payments(body []byte) {
 
 func PaymentsSummary(path string) []byte {
 	path = strings.Split(path, " ")[0]
+	fmt.Println("PaymentsSummary called with path:", path)
 
 	time.Sleep(950 * time.Millisecond)
 	from := "1970-01-01T00:00:00.000Z"
@@ -93,6 +94,7 @@ func PaymentsSummary(path string) []byte {
 			}
 		}
 	}
+	fmt.Println("Fetching payment history from", from, "to", to)
 
 	payments, err := database.GetPaymentHistoryInMemory(database.RedisClient, from, to)
 	if err != nil {

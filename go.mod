@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/cloudwego/hertz v0.10.1
 	github.com/nats-io/nats.go v1.44.0
+	github.com/panjf2000/gnet/v2 v2.9.3
 	github.com/redis/go-redis/v9 v9.11.0
 	github.com/tidwall/evio v1.0.8
 	github.com/valyala/fasthttp v1.64.0
@@ -31,7 +32,7 @@ require (
 	github.com/nats-io/nkeys v0.4.11 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nyaruka/phonenumbers v1.0.55 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/panjf2000/ants/v2 v2.11.3 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
@@ -41,10 +42,13 @@ require (
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	golang.org/x/crypto v0.40.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
