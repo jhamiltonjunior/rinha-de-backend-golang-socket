@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -46,7 +45,8 @@ func InitializeWorker(client *redis.Client) {
 
 	workerLogic := func(_ int) nats.MsgHandler {
 		return func(msg *nats.Msg) {
-			msg.Data = bytes.Trim(msg.Data, "\x00")
+			// msg.Data = bytes.Trim(msg.Data, "\x00")
+			// fmt.Println("Received message:", string(msg.Data))
 
 			paymentWorker := PaymentWorker{
 				Body:              msg.Data,
@@ -118,6 +118,11 @@ func ProcessPayment(paymentBytes []byte, ctx context.Context, theBestURLEver str
 	// fmt.Println("Bytes do payload:")
 	// for i, b := range paymentBytes {
 	// 	fmt.Printf("[%02d] 0x%02X (%q)\n", i, b, b)
+	// }
+
+	// if err := json.Unmarshal(paymentBytes, &payment); err != nil {
+	// 	fmt.Println("Erro ao deserializar o pagamento:", err)
+	// 	return nil, true
 	// }
 
 	// return nil, true

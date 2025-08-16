@@ -2,11 +2,11 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"log"
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,11 +15,40 @@ import (
 )
 
 var bufPool = sync.Pool{
-	New: func() any { return new([8192]byte) },
+	New: func() any { return new([4096]byte) },
 }
-var OK = []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
 
-const maxConns = 2000
+var writerPool = sync.Pool{
+	New: func() any {
+		return bufio.NewWriter(nil)
+	},
+}
+
+var (
+	OK_RESPONSE          = []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+	NOT_FOUND_RESPONSE   = []byte("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
+	UNAVAILABLE_RESPONSE = []byte("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n")
+
+	POST       = []byte("POST")
+	GET        = []byte("GET")
+	POSTLENGTH = len(POST)
+	GETLENGTH  = len(GET)
+
+	PAYMENTS_PATH         = []byte("/payments")
+	PAYMENTS_SUMMARY_PATH = []byte("/payments-summary")
+	PAYMENTS_PURGE_PATH   = []byte("/payments-purge")
+
+	PAYMENTS_PATH_LENGTH         = len(PAYMENTS_PATH)
+	PAYMENTS_SUMMARY_PATH_LENGTH = len(PAYMENTS_SUMMARY_PATH)
+	PAYMENTS_PURGE_PATH_LENGTH   = len(PAYMENTS_PURGE_PATH)
+
+	CONTENT_LENGTH_HEADER = []byte("\r\ncontent-length: ")
+
+	HTTP_200_PREFIX  = []byte("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ")
+	HTTP_HEADERS_END = []byte("\r\n\r\n")
+)
+
+const maxConns = 4000
 
 func EscovandoBits(_ string) {
 	socketPath := os.Getenv("UNIX_SOCKET")
@@ -51,84 +80,93 @@ func EscovandoBits(_ string) {
 					c.Close()
 					<-sem
 				}()
-				handleConn(c)
+				handleConnV2(c)
 			}(conn)
 		default:
-			conn.Write([]byte("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"))
+			conn.Write(UNAVAILABLE_RESPONSE)
 			conn.Close()
 		}
 	}
 }
 
-func handleConn(c net.Conn) {
-	br := bufio.NewReader(c)
+func handleConnV2(c net.Conn) {
+	bufPtr := bufPool.Get().(*[4096]byte)
+	defer bufPool.Put(bufPtr)
+	buf := bufPtr[:]
+
+	bw := writerPool.Get().(*bufio.Writer)
+	bw.Reset(c)
+	defer func() {
+		bw.Reset(nil)
+		writerPool.Put(bw)
+	}()
 
 	for {
-		_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
-		_ = c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		deadline := time.Now().Add(1500 * time.Millisecond)
+		_ = c.SetReadDeadline(deadline)
+		_ = c.SetWriteDeadline(deadline)
 
-		reqLine, err := br.ReadString('\n')
+		n, err := c.Read(buf)
 		if err != nil {
 			return
 		}
+		if n == 0 {
+			continue
+		}
 
-		reqLine = strings.TrimSpace(reqLine)
-		if reqLine == "" {
+		reqData := buf[:n]
+
+		methodEnd := bytes.IndexByte(reqData, ' ')
+		if methodEnd == -1 {
 			return
 		}
+		method := reqData[:methodEnd]
 
-		var contentLength int
-		for {
-			line, err := br.ReadString('\n')
-			if err != nil {
-				return
-			}
-			line = strings.TrimSpace(line)
-			if line == "" {
-				break
-			}
-			if strings.HasPrefix(strings.ToLower(line), "content-length:") {
-				cl := strings.TrimSpace(line[len("content-length:"):])
-				if v, err := strconv.Atoi(cl); err == nil {
-					contentLength = v
-				}
-			}
+		pathStart := methodEnd + 1
+		pathEnd := bytes.IndexByte(reqData[pathStart:], ' ')
+		if pathEnd == -1 {
+			return
 		}
+		path := reqData[pathStart : pathStart+pathEnd]
+
+		pathLen := len(path)
+		methodLen := len(method)
 
 		switch {
-		case strings.HasPrefix(reqLine, "POST /payments"):
-			bufPtr := bufPool.Get().(*[8192]byte)
-			defer bufPool.Put(bufPtr)
-			buf := bufPtr[:]
-
-			if contentLength > len(buf) {
-				buf = make([]byte, contentLength)
-			}
-			_, err := br.Read(buf[:contentLength])
-			if err != nil {
+		case methodLen == POSTLENGTH && pathLen == PAYMENTS_PATH_LENGTH:
+			bodyStart := bytes.Index(reqData, HTTP_HEADERS_END)
+			if bodyStart == -1 {
 				return
 			}
+			bodyStart += 4
 
-			services.PublishMessage(services.PaymentSubject, buf[:contentLength])
-			c.Write(OK)
+			services.PublishMessage(services.PaymentSubject, reqData[bodyStart:])
 
-		case strings.HasPrefix(reqLine, "GET /payments-summary"):
+			bw.Write(OK_RESPONSE)
+			bw.Flush()
+
+		case bytes.Equal(method, GET) && bytes.HasPrefix(path, PAYMENTS_SUMMARY_PATH):
 			query := ""
-			if idx := strings.Index(reqLine, "?"); idx != -1 {
-				query = reqLine[idx+1:]
+			if queryIdx := bytes.IndexByte(path, '?'); queryIdx != -1 {
+				query = string(path[queryIdx+1:])
 			}
-			body := handler.PaymentsSummary(query)
-			resp := []byte("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " +
-				strconv.Itoa(len(body)) + "\r\n\r\n")
-			resp = append(resp, body...)
-			c.Write(resp)
 
-		case strings.HasPrefix(reqLine, "GET /payments-purge"):
+			body := handler.PaymentsSummary(query)
+
+			bw.Write(HTTP_200_PREFIX)
+			bw.Write(strconv.AppendInt(nil, int64(len(body)), 10))
+			bw.Write(HTTP_HEADERS_END)
+			bw.Write(body)
+			bw.Flush()
+
+		case methodLen == POSTLENGTH && pathLen == PAYMENTS_PURGE_PATH_LENGTH:
 			handler.PaymentsPurge()
-			c.Write(OK)
+			bw.Write(OK_RESPONSE)
+			bw.Flush()
 
 		default:
-			c.Write([]byte("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"))
+			bw.Write(NOT_FOUND_RESPONSE)
+			bw.Flush()
 		}
 	}
 }

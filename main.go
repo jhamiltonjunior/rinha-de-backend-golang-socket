@@ -28,7 +28,7 @@ func main() {
 	// os resultados foram bons com hertz, mas o fasthttp ainda parece ser mais rápido.
 	// preciso testar o netpoll também, mas por enquanto vou manter o fasthttp como padrão.
 
-	server.ListenAndServeGNET(appPort)
+	server.EscovandoBits(appPort)
 }
 
 // func pingQuantityOfSegureOChann() {
