@@ -11,6 +11,7 @@ import (
 
 func main() {
 	clientRedis := database.InitializeRedis()
+	go database.StartRedisWorker(clientRedis)
 
 	natsURL := os.Getenv("NATS_URL")
 

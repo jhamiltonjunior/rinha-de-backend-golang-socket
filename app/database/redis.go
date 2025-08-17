@@ -14,9 +14,9 @@ import (
 var (
 	RedisClient *redis.Client
 	Key         = 0
+	keys        = []string{"payment_history_1", "payment_history_2", "payment_history_3", "payment_history_4"}
 )
 
-// verificar o utra alterntiva ao redis
 
 func InitializeRedis() *redis.Client {
 	RedisClient = redis.NewClient(&redis.Options{
@@ -29,13 +29,50 @@ func InitializeRedis() *redis.Client {
 	return RedisClient
 }
 
-func CreatePaymentHistoryInMemory(client *redis.Client, paymentData map[string]any, typeService string) {
-	ctx := context.Background()
+var paymentChan = make(chan []byte, 10000)
 
-	keys := []string{"payment_history_1", "payment_history_2", "payment_history_3", "payment_history_4"}
+func StartRedisWorker(client *redis.Client) {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	var buffer [][]byte
+
+	for {
+		select {
+		case payment := <-paymentChan:
+			buffer = append(buffer, payment)
+			if len(buffer) >= 10 {
+				flushToRedis(client, buffer)
+				buffer = buffer[:0]
+			}
+		case <-ticker.C:
+			if len(buffer) > 0 {
+				flushToRedis(client, buffer)
+				buffer = buffer[:0]
+			}
+		}
+	}
+}
+
+func flushToRedis(client *redis.Client, payments [][]byte) {
+	ctx := context.Background()
+	pipe := client.Pipeline()
+
+	for _, paymentData := range payments {
+		key := keys[Key]
+		pipe.LPush(ctx, key, paymentData)
+		Key = (Key + 1) % len(keys)
+	}
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		log.Printf("Erro no batch insert: %v", err)
+	}
+}
+
+func CreatePaymentHistoryInMemory(client *redis.Client, paymentData map[string]any, typeService string) {
 
 	newEntry := map[string]any{
-		// "correlationId": paymentData["correlationId"],
 		"amount":        paymentData["amount"],
 		"requestedAt":   paymentData["requestedAt"],
 		"type":          typeService,
@@ -47,18 +84,7 @@ func CreatePaymentHistoryInMemory(client *redis.Client, paymentData map[string]a
 		return
 	}
 
-	// if typeService == "default" {
-	// 	paymentData = append(paymentData, []byte(fmt.Sprintf(`,"type":"%"}`, 0))...)
-	// } else {
-	// 	paymentData = append(paymentData, []byte(fmt.Sprintf(`,"type":"%s"}`, 1))...)
-	// }
-
-	err = client.LPush(ctx, keys[Key], entryBytes).Err()
-	if err != nil {
-		log.Printf("Erro ao adicionar entrada ao histórico de pagamentos: %v", err)
-	}
-
-	Key = (Key + 1) % len(keys)
+	paymentChan <- entryBytes
 }
 
 func GetPaymentHistoryInMemory(client *redis.Client, from, to string) ([]PaymentHistory, error) {
@@ -113,9 +139,9 @@ func GetPaymentHistoryInMemory(client *redis.Client, from, to string) ([]Payment
 		if entryNum > fromNum && entryNum < toNum {
 			payment := PaymentHistory{
 				// CorrelationId: entry["correlationId"].(string),
-				Amount:        entry["amount"].(float64),
-				RequestedAt:   requestedAtStr,
-				Type:          entry["type"].(string),
+				Amount:      entry["amount"].(float64),
+				RequestedAt: requestedAtStr,
+				Type:        entry["type"].(string),
 			}
 			filteredHistory = append(filteredHistory, payment)
 		}
@@ -126,23 +152,11 @@ func GetPaymentHistoryInMemory(client *redis.Client, from, to string) ([]Payment
 
 func PurgePaymentHistoryInMemory(client *redis.Client) {
 	ctx := context.Background()
-	// key := "payment_history"
-
-	keys := []string{"payment_history_1", "payment_history_2", "payment_history_3", "payment_history_4"}
 
 	for _, k := range keys {
 		err := client.Del(ctx, k).Err()
 		if err != nil {
 			log.Printf("Erro ao limpar histórico de pagamentos: %v", err)
-		} else {
-			fmt.Printf("Histórico de pagamentos '%s' limpo com sucesso.\n", k)
 		}
 	}
-
-	// err := client.Del(ctx, key).Err()
-	// if err != nil {
-	// 	log.Printf("Erro ao limpar histórico de pagamentos: %v", err)
-	// } else {
-	// 	fmt.Println("Histórico de pagamentos limpo com sucesso.")
-	// }
 }

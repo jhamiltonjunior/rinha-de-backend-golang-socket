@@ -24,8 +24,8 @@ type PaymentWorker struct {
 }
 
 var (
-	SegureOChann  = make(chan PaymentWorker, 4000)
-	SegureOChann2 = make(chan PaymentWorker, 4000)
+	SegureOChann  = make(chan PaymentWorker, 40000)
+	SegureOChann2 = make(chan PaymentWorker, 40000)
 	BufferPool    = sync.Pool{
 		New: func() interface{} {
 			b := make([]byte, 0, 1024)

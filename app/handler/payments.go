@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/jhamiltonjunior/rinha-de-backend/app/database"
 	"github.com/jhamiltonjunior/rinha-de-backend/app/worker"
@@ -77,8 +76,8 @@ func Payments(body []byte) {
 
 func PaymentsSummary(path string) []byte {
 	path = strings.Split(path, " ")[0]
-	fmt.Println("PaymentsSummary called with path:", path)
 
+	// time.Sleep(1200 * time.Millisecond)
 	from := "1970-01-01T00:00:00.000Z"
 	to := "9999-12-31T23:59:00.000Z"
 
@@ -93,7 +92,6 @@ func PaymentsSummary(path string) []byte {
 			}
 		}
 	}
-	fmt.Println("Fetching payment history from", from, "to", to)
 
 	payments, err := database.GetPaymentHistoryInMemory(database.RedisClient, from, to)
 	if err != nil {
